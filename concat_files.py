@@ -270,7 +270,7 @@ def _create_version_metafile(config, config_dirname):
         'commit_short' : git_commit_short,
 
         'now' : datetime.datetime.now(),
-        'utc_now' : datetime.datetime.utcnow(),
+        'utc_now' : datetime.datetime.now(datetime.UTC),
     }
 
     version_template_file = config.get('version_template_file')
