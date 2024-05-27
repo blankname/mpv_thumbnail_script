@@ -2,7 +2,7 @@
 This is mpv's original player/lua/osc.lua patched to display thumbnails
 
 Sections are denoted with -- mpv_thumbnail_script.lua --
-Current osc.lua version: 6ae5ff26b0812052c2c6586edd0e88e42bd96bb3
+Current osc.lua version: 691a25de38ea945643f29af1b263fe30f8db2dad
 ]]--
 
 local assdraw = require 'mp.assdraw'
@@ -21,8 +21,7 @@ local user_opts = {
     idlescreen = true,          -- show mpv logo on idle
     scalewindowed = 1,          -- scaling of the controller when windowed
     scalefullscreen = 1,        -- scaling of the controller when fullscreen
-    scaleforcedwindow = 2,      -- scaling when rendered on a forced window
-    vidscale = true,            -- scale the controller with the video?
+    vidscale = "auto",          -- scale the controller with the video?
     valign = 0.8,               -- vertical alignment, -1 (top) to 1 (bottom)
     halign = 0,                 -- horizontal alignment, -1 (left) to 1 (right)
     barmargin = 0,              -- vertical margin of top/bottombar
@@ -64,12 +63,25 @@ local user_opts = {
     livemarkers = true,         -- update seekbar chapter markers on duration change
     chapters_osd = true,        -- whether to show chapters OSD on next/prev
     playlist_osd = true,        -- whether to show playlist OSD on next/prev
+    playlist_media_title = true, -- whether to use media titles as playlist entry names
     chapter_fmt = "Chapter: %s", -- chapter print format for seekbar-hover. "no" to disable
     unicodeminus = false,       -- whether to use the Unicode minus sign character
+
+    background_color = "#000000",	-- background color of the osc
+    timecode_color = "#FFFFFF",		-- color of the progress bar and time color
+    title_color = "#FFFFFF",		-- color of the title
+    time_pos_color = "#FFFFFF",		-- color of the timecode at hovered position
+    buttons_color = "#FFFFFF",		-- color of big buttons, wc buttons, and bar small buttons
+    small_buttonsL_color = "#FFFFFF",	-- color of left small buttons
+    small_buttonsR_color = "#FFFFFF",	-- color of right small buttons
+    top_buttons_color = "#FFFFFF",	-- color of top buttons
+    held_element_color = "#999999",	-- color of an element while held down
+
+    time_pos_outline_color = "#000000"	-- color of the border timecodes in slimbox and TimePosBar
 }
 
 -- read options from config and command-line
-opt.read_options(user_opts, "osc", function(list) update_options(list) end)
+opt.read_options(user_opts, "osc", function() update_options() end)
 
 -- mpv_thumbnail_script.lua --
 
@@ -307,48 +319,55 @@ local osc_param = { -- calculated by osc_init()
     },
 }
 
+function osc_color_convert(color)
+	return color:sub(6,7) .. color:sub(4,5) ..  color:sub(2,3)
+end
+
+-- luacheck: push ignore
+-- luacheck: max line length
 local osc_styles = {
-    bigButtons = "{\\blur0\\bord0\\1c&HFFFFFF\\3c&HFFFFFF\\fs50\\fnmpv-osd-symbols}",
-    smallButtonsL = "{\\blur0\\bord0\\1c&HFFFFFF\\3c&HFFFFFF\\fs19\\fnmpv-osd-symbols}",
+    bigButtons = "{\\blur0\\bord0\\1c&H" .. osc_color_convert(user_opts.buttons_color) .. "\\3c&HFFFFFF\\fs50\\fnmpv-osd-symbols}",
+    smallButtonsL = "{\\blur0\\bord0\\1c&H" .. osc_color_convert(user_opts.small_buttonsL_color) .. "\\3c&HFFFFFF\\fs19\\fnmpv-osd-symbols}",
     smallButtonsLlabel = "{\\fscx105\\fscy105\\fn" .. mp.get_property("options/osd-font") .. "}",
-    smallButtonsR = "{\\blur0\\bord0\\1c&HFFFFFF\\3c&HFFFFFF\\fs30\\fnmpv-osd-symbols}",
-    topButtons = "{\\blur0\\bord0\\1c&HFFFFFF\\3c&HFFFFFF\\fs12\\fnmpv-osd-symbols}",
+    smallButtonsR = "{\\blur0\\bord0\\1c&H" .. osc_color_convert(user_opts.small_buttonsR_color) .. "\\3c&HFFFFFF\\fs30\\fnmpv-osd-symbols}",
+    topButtons = "{\\blur0\\bord0\\1c&H" .. osc_color_convert(user_opts.top_buttons_color) .. "\\3c&HFFFFFF\\fs12\\fnmpv-osd-symbols}",
 
-    elementDown = "{\\1c&H999999}",
-    timecodes = "{\\blur0\\bord0\\1c&HFFFFFF\\3c&HFFFFFF\\fs20}",
-    vidtitle = "{\\blur0\\bord0\\1c&HFFFFFF\\3c&HFFFFFF\\fs12\\q2}",
-    box = "{\\rDefault\\blur0\\bord1\\1c&H000000\\3c&HFFFFFF}",
+    elementDown = "{\\1c&H" .. osc_color_convert(user_opts.held_element_color) .."}",
+    timecodes = "{\\blur0\\bord0\\1c&H" .. osc_color_convert(user_opts.timecode_color) .. "\\3c&HFFFFFF\\fs20}",
+    vidtitle = "{\\blur0\\bord0\\1c&H" .. osc_color_convert(user_opts.title_color) .. "\\3c&HFFFFFF\\fs12\\q2}",
+    box = "{\\rDefault\\blur0\\bord1\\1c&H" .. osc_color_convert(user_opts.background_color) .. "\\3c&HFFFFFF}",
 
-    topButtonsBar = "{\\blur0\\bord0\\1c&HFFFFFF\\3c&HFFFFFF\\fs18\\fnmpv-osd-symbols}",
-    smallButtonsBar = "{\\blur0\\bord0\\1c&HFFFFFF\\3c&HFFFFFF\\fs28\\fnmpv-osd-symbols}",
-    timecodesBar = "{\\blur0\\bord0\\1c&HFFFFFF\\3c&HFFFFFF\\fs27}",
-    timePosBar = "{\\blur0\\bord".. user_opts.tooltipborder .."\\1c&HFFFFFF\\3c&H000000\\fs30}",
-    vidtitleBar = "{\\blur0\\bord0\\1c&HFFFFFF\\3c&HFFFFFF\\fs18\\q2}",
+    topButtonsBar = "{\\blur0\\bord0\\1c&H" .. osc_color_convert(user_opts.top_buttons_color) .. "\\3c&HFFFFFF\\fs18\\fnmpv-osd-symbols}",
+    smallButtonsBar = "{\\blur0\\bord0\\1c&H" .. osc_color_convert(user_opts.buttons_color) .. "\\3c&HFFFFFF\\fs28\\fnmpv-osd-symbols}",
+    timecodesBar = "{\\blur0\\bord0\\1c&H" .. osc_color_convert(user_opts.timecode_color) .."\\3c&HFFFFFF\\fs27}",
+    timePosBar = "{\\blur0\\bord".. user_opts.tooltipborder .."\\1c&H" .. osc_color_convert(user_opts.time_pos_color) .. "\\3c&H" .. osc_color_convert(user_opts.time_pos_outline_color) .. "\\fs30}",
+    vidtitleBar = "{\\blur0\\bord0\\1c&H" .. osc_color_convert(user_opts.title_color) .. "\\3c&HFFFFFF\\fs18\\q2}",
 
-    wcButtons = "{\\1c&HFFFFFF\\fs24\\fnmpv-osd-symbols}",
-    wcTitle = "{\\1c&HFFFFFF\\fs24\\q2}",
-    wcBar = "{\\1c&H000000}",
+    wcButtons = "{\\1c&H" .. osc_color_convert(user_opts.buttons_color) .. "\\fs24\\fnmpv-osd-symbols}",
+    wcTitle = "{\\1c&H" .. osc_color_convert(user_opts.title_color) .. "\\fs24\\q2}",
+    wcBar = "{\\1c&H" .. osc_color_convert(user_opts.background_color) .. "}",
 }
+-- luacheck: pop
 
 -- internal states, do not touch
 local state = {
-    showtime,                               -- time of last invocation (last mouse move)
+    showtime = nil,                         -- time of last invocation (last mouse move)
     osc_visible = false,
-    anistart,                               -- time when the animation started
-    anitype,                                -- current type of animation
-    animation,                              -- current animation alpha
+    anistart = nil,                         -- time when the animation started
+    anitype = nil,                          -- current type of animation
+    animation = nil,                        -- current animation alpha
     mouse_down_counter = 0,                 -- used for softrepeat
     active_element = nil,                   -- nil = none, 0 = background, 1+ = see elements[]
     active_event_source = nil,              -- the "button" that issued the current event
     rightTC_trem = not user_opts.timetotal, -- if the right timecode should display total or remaining time
     tc_ms = user_opts.timems,               -- Should the timecodes display their time with milliseconds
-    mp_screen_sizeX, mp_screen_sizeY,       -- last screen-resolution, to detect resolution changes to issue reINITs
+    screen_sizeX = nil, screen_sizeY = nil, -- last screen-resolution, to detect resolution changes to issue reINITs
     initREQ = false,                        -- is a re-init request pending?
     marginsREQ = false,                     -- is a margins update pending?
-    last_mouseX, last_mouseY,               -- last mouse position, to detect significant mouse movement
+    last_mouseX = nil, last_mouseY = nil,   -- last mouse position, to detect significant mouse movement
     mouse_in_window = false,
-    message_text,
-    message_hide_timer,
+    message_text = nil,
+    message_hide_timer = nil,
     fullscreen = false,
     tick_timer = nil,
     tick_last_time = 0,                     -- when the last tick() was run
@@ -607,9 +626,9 @@ end
 
 -- return a nice list of tracks of the given type (video, audio, sub)
 function get_tracklist(type)
-    local msg = "Available " .. nicetypes[type] .. " Tracks: "
+    local message = "Available " .. nicetypes[type] .. " Tracks: "
     if not tracks_osc or #tracks_osc[type] == 0 then
-        msg = msg .. "none"
+        message = message .. "none"
     else
         for n = 1, #tracks_osc[type] do
             local track = tracks_osc[type][n]
@@ -619,10 +638,10 @@ function get_tracklist(type)
             if track.id == tonumber(mp.get_property(type)) then
                 selected = "●"
             end
-            msg = msg.."\n"..selected.." "..n..": ["..lang.."] "..title
+            message = message.."\n"..selected.." "..n..": ["..lang.."] "..title
         end
     end
-    return msg
+    return message
 end
 
 -- relatively change the track of given <type> by <next> tracks
@@ -671,7 +690,7 @@ end
 function window_controls_enabled()
     val = user_opts.windowcontrols
     if val == "auto" then
-        return not state.border
+        return not (state.border and state.title_bar)
     else
         return val ~= "no"
     end
@@ -691,7 +710,7 @@ function prepare_elements()
 
     -- remove elements without layout or invisible
     local elements2 = {}
-    for n, element in pairs(elements) do
+    for _, element in pairs(elements) do
         if element.layout ~= nil and element.visible then
             table.insert(elements2, element)
         end
@@ -957,7 +976,8 @@ function render_elements(master_ass)
                                 if pos > range["end"] then
                                     pend = get_slider_ele_pos_for(element, range["end"])
                                 end
-                                elem_ass:rect_ccw(pstart, elem_geo.h - foV - seekRangeLineHeight, pend, elem_geo.h - foV)
+                                elem_ass:rect_ccw(pstart, elem_geo.h - foV - seekRangeLineHeight,
+                                                  pend, elem_geo.h - foV)
                             end
                         end
                     end
@@ -1095,8 +1115,6 @@ function render_elements(master_ass)
                     end
                     buttontext = buttontext .. "..."
                 end
-                local _, nchars2 = buttontext:gsub(".[\128-\191]*", "")
-                local stretch = (maxchars/#buttontext)*100
                 buttontext = string.format("{\\fscx%f}",
                     (maxchars/#buttontext)*100) .. buttontext
             end
@@ -1146,10 +1164,10 @@ function get_playlist()
     end
 
     local message = string.format('Playlist [%d/%d]:\n', pos, count)
-    for i, v in ipairs(limlist) do
+    for _, v in ipairs(limlist) do
         local title = v.title
         local _, filename = utils.split_path(v.filename)
-        if title == nil then
+        if not user_opts.playlist_media_title or title == nil then
             title = filename
         end
         message = string.format('%s %s %s\n', message,
@@ -1183,7 +1201,7 @@ function show_message(text, duration)
     --print("text: "..text.."   duration: " .. duration)
     if duration == nil then
         duration = tonumber(mp.get_property("options/osd-duration")) / 1000
-    elseif not type(duration) == "number" then
+    elseif type(duration) ~= "number" then
         print("duration: " .. duration)
     end
 
@@ -1191,10 +1209,7 @@ function show_message(text, duration)
     -- may slow down massively on huge input
     text = string.sub(text, 0, 4000)
 
-    -- replace actual linebreaks with ASS linebreaks
-    text = string.gsub(text, "\n", "\\N")
-
-    state.message_text = text
+    state.message_text = mp.command_native({"escape-ass", text})
 
     if not state.message_hide_timer then
         state.message_hide_timer = mp.add_timeout(0, request_tick)
@@ -1398,9 +1413,8 @@ function window_controls(topbar)
     ne = new_element("wctitle", "button")
     ne.content = function ()
         local title = mp.command_native({"expand-text", user_opts.windowcontrols_title})
-        -- escape ASS, and strip newlines and trailing slashes
-        title = title:gsub("\\n", " "):gsub("\\$", ""):gsub("{","\\{")
-        return not (title == "") and title or "mpv"
+        title = title:gsub("\n", " ")
+        return title ~= "" and mp.command_native({"escape-ass", title}) or "mpv"
     end
     local left_pad = 5
     local right_pad = 10
@@ -1471,8 +1485,7 @@ layouts["box"] = function ()
     add_area("showhide", 0, sh_area_y0, osc_param.playresx, sh_area_y1)
 
     -- fetch values
-    local osc_w, osc_h, osc_r, osc_p =
-        osc_geo.w, osc_geo.h, osc_geo.r, osc_geo.p
+    local osc_w, osc_h, osc_r = osc_geo.w, osc_geo.h, osc_geo.r
 
     local lo
 
@@ -1647,9 +1660,11 @@ layouts["slimbox"] = function ()
 
     -- styles
     local styles = {
-        box = "{\\rDefault\\blur0\\bord1\\1c&H000000\\3c&HFFFFFF}",
-        timecodes = "{\\1c&HFFFFFF\\3c&H000000\\fs20\\bord2\\blur1}",
-        tooltip = "{\\1c&HFFFFFF\\3c&H000000\\fs12\\bord1\\blur0.5}",
+        box = "{\\rDefault\\blur0\\bord1\\1c&H" .. osc_color_convert(user_opts.background_color) .. "\\3c&HFFFFFF}",
+        timecodes = "{\\1c&H" .. osc_color_convert(user_opts.timecode_color) .. "\\3c&H" ..
+                    osc_color_convert(user_opts.time_pos_outline_color) .. "\\fs20\\bord2\\blur1}",
+        tooltip = "{\\1c&H" .. osc_color_convert(user_opts.time_pos_color).. "\\3c&H" ..
+                  osc_color_convert(user_opts.time_pos_outline_color) .. "\\fs12\\bord1\\blur0.5}",
     }
 
 
@@ -1711,9 +1726,9 @@ end
 function bar_layout(direction)
     local osc_geo = {
         x = -2,
-        y,
+        y = nil,
         an = (direction < 0) and 7 or 1,
-        w,
+        w = nil,
         h = 56,
     }
 
@@ -1966,9 +1981,22 @@ function validate_user_opts()
                 user_opts.windowcontrols_alignment .. "\". Ignoring.")
         user_opts.windowcontrols_alignment = "right"
     end
+
+    local colors = {
+        user_opts.background_color, user_opts.top_buttons_color,
+        user_opts.small_buttonsL_color, user_opts.small_buttonsR_color,
+        user_opts.buttons_color, user_opts.title_color,
+        user_opts.timecode_color, user_opts.time_pos_color,
+        user_opts.held_element_color, user_opts.time_pos_outline_color,
+    }
+    for _, color in pairs(colors) do
+	    if color:find("^#%x%x%x%x%x%x$") == nil then
+		    msg.warn("'" .. color .. "' is not a valid color")
+	    end
+    end
 end
 
-function update_options(list)
+function update_options()
     validate_user_opts()
     request_tick()
     visibility_mode(user_opts.visibility, true)
@@ -1984,18 +2012,23 @@ function osc_init()
 
     -- set canvas resolution according to display aspect and scaling setting
     local baseResY = 720
-    local display_w, display_h, display_aspect = mp.get_osd_size()
-    local scale = 1
+    local _, display_h, display_aspect = mp.get_osd_size()
+    local scale
 
-    if mp.get_property("video") == "no" then -- dummy/forced window
-        scale = user_opts.scaleforcedwindow
-    elseif state.fullscreen then
+    if state.fullscreen then
         scale = user_opts.scalefullscreen
     else
         scale = user_opts.scalewindowed
     end
 
-    if user_opts.vidscale then
+    local scale_with_video
+    if user_opts.vidscale == "auto" then
+        scale_with_video = mp.get_property_native("osd-scale-by-window")
+    else
+        scale_with_video = user_opts.vidscale == "yes"
+    end
+
+    if scale_with_video then
         osc_param.unscaled_y = baseResY
     else
         osc_param.unscaled_y = display_h
@@ -2028,9 +2061,8 @@ function osc_init()
     ne.content = function ()
         local title = state.forced_title or
                       mp.command_native({"expand-text", user_opts.title})
-        -- escape ASS, and strip newlines and trailing slashes
-        title = title:gsub("\\n", " "):gsub("\\$", ""):gsub("{","\\{")
-        return not (title == "") and title or "mpv"
+        title = title:gsub("\n", " ")
+        return title ~= "" and mp.command_native({"escape-ass", title}) or "mpv"
     end
 
     ne.eventresponder["mbtn_left_up"] = function ()
@@ -2089,7 +2121,11 @@ function osc_init()
 
     ne.content = function ()
         if mp.get_property("pause") == "yes" then
-            return ("\238\132\129")
+            if mp.get_property("play-direction", "forward") ~= "backward" then
+                return ("\238\132\129")
+            else
+                return ("\238\132\144")
+            end
         else
             return ("\238\128\130")
         end
@@ -2412,8 +2448,8 @@ end
 
 function reset_margins()
     if state.using_video_margins then
-        for _, opt in ipairs(margins_opts) do
-            mp.set_property_number(opt[2], 0.0)
+        for _, mopt in ipairs(margins_opts) do
+            mp.set_property_number(mopt[2], 0.0)
         end
         state.using_video_margins = false
     end
@@ -2435,18 +2471,18 @@ function update_margins()
         local margins_used = false
 
         if not state.using_video_margins then
-            for _, opt in ipairs(margins_opts) do
-                if mp.get_property_number(opt[2], 0.0) ~= 0.0 then
+            for _, mopt in ipairs(margins_opts) do
+                if mp.get_property_number(mopt[2], 0.0) ~= 0.0 then
                     margins_used = true
                 end
             end
         end
 
         if not margins_used then
-            for _, opt in ipairs(margins_opts) do
-                local v = margins[opt[1]]
+            for _, mopt in ipairs(margins_opts) do
+                local v = margins[mopt[1]]
                 if v ~= 0 or state.using_video_margins then
-                    mp.set_property_number(opt[2], v)
+                    mp.set_property_number(mopt[2], v)
                     state.using_video_margins = true
                 end
             end
@@ -2508,12 +2544,12 @@ function osc_visible(visible)
     request_tick()
 end
 
-function pause_state(name, enabled)
+function pause_state(_, enabled)
     state.paused = enabled
     request_tick()
 end
 
-function cache_state(name, st)
+function cache_state(_, st)
     state.cache_state = st
     request_tick()
 end
@@ -2568,18 +2604,18 @@ end
 
 function render()
     msg.trace("rendering")
-    local current_screen_sizeX, current_screen_sizeY, aspect = mp.get_osd_size()
+    local current_screen_sizeX, current_screen_sizeY = mp.get_osd_size()
     local mouseX, mouseY = get_virt_mouse_pos()
     local now = mp.get_time()
 
     -- check if display changed, if so request reinit
-    if state.mp_screen_sizeX ~= current_screen_sizeX
-        or state.mp_screen_sizeY ~= current_screen_sizeY then
+    if state.screen_sizeX ~= current_screen_sizeX
+        or state.screen_sizeY ~= current_screen_sizeY then
 
         request_init_resize()
 
-        state.mp_screen_sizeX = current_screen_sizeX
-        state.mp_screen_sizeY = current_screen_sizeY
+        state.screen_sizeX = current_screen_sizeX
+        state.screen_sizeY = current_screen_sizeY
     end
 
     -- init management
@@ -2634,11 +2670,11 @@ function render()
     end
 
     --mouse show/hide area
-    for k,cords in pairs(osc_param.areas["showhide"]) do
+    for _, cords in pairs(osc_param.areas["showhide"]) do
         set_virt_mouse_area(cords.x1, cords.y1, cords.x2, cords.y2, "showhide")
     end
     if osc_param.areas["showhide_wc"] then
-        for k,cords in pairs(osc_param.areas["showhide_wc"]) do
+        for _, cords in pairs(osc_param.areas["showhide_wc"]) do
             set_virt_mouse_area(cords.x1, cords.y1, cords.x2, cords.y2, "showhide_wc")
         end
     else
@@ -2794,7 +2830,7 @@ function process_event(source, what)
         if elements[state.active_element] then
             local n = state.active_element
 
-            if n == 0 then
+            if n == 0 then --luacheck: ignore 542
                 --click on background (does not work)
             elseif element_has_action(elements[n], action) and
                 mouse_hit(elements[n]) then
@@ -2836,7 +2872,8 @@ function process_event(source, what)
     request_tick()
 end
 
-
+-- luacheck: push ignore
+-- luacheck: max line length
 local logo_lines = {
     -- White border
     "{\\c&HE5E5E5&\\p6}m 895 10 b 401 10 0 410 0 905 0 1399 401 1800 895 1800 1390 1800 1790 1399 1790 905 1790 410 1390 10 895 10 {\\p0}",
@@ -2861,6 +2898,7 @@ local santa_hat_lines = {
     -- Brim and tip pompom
     "{\\c&HF8F8F8&\\p6}m 626 -191 b 565 -155 486 -196 428 -151 387 -115 327 -101 304 -47 273 2 267 59 249 113 219 157 217 213 215 265 217 309 260 302 285 283 373 264 465 264 555 257 608 252 655 292 709 287 759 294 816 276 863 298 903 340 972 324 1012 367 1061 394 1125 382 1167 424 1213 462 1268 482 1322 506 1385 546 1427 610 1479 662 1510 690 1534 725 1566 752 1611 796 1664 830 1703 880 1740 918 1747 986 1805 1005 1863 991 1897 932 1916 880 1914 823 1945 777 1961 725 1979 673 1957 622 1938 575 1912 534 1862 515 1836 473 1790 417 1755 351 1697 305 1658 266 1633 216 1593 176 1574 138 1539 116 1497 110 1448 101 1402 77 1371 37 1346 -16 1295 15 1254 6 1211 -27 1170 -62 1121 -86 1072 -104 1027 -128 976 -133 914 -130 851 -137 794 -162 740 -181 679 -168 626 -191 m 2051 917 b 1971 932 1929 1017 1919 1091 1912 1149 1923 1214 1970 1254 2000 1279 2027 1314 2066 1325 2139 1338 2212 1295 2254 1238 2281 1203 2287 1158 2282 1116 2292 1061 2273 1006 2229 970 2206 941 2167 938 2138 918{\\p0}",
 }
+-- luacheck: pop
 
 -- called by mpv on every frame
 function tick()
@@ -2888,7 +2926,7 @@ function tick()
         local ass = assdraw.ass_new()
         -- mpv logo
         if user_opts.idlescreen then
-            for i, line in ipairs(logo_lines) do
+            for _, line in ipairs(logo_lines) do
                 ass:new_event()
                 ass:append(line_prefix .. line)
             end
@@ -2896,7 +2934,7 @@ function tick()
 
         -- Santa hat
         if is_december and user_opts.idlescreen and not user_opts.greenandgrumpy then
-            for i, line in ipairs(santa_hat_lines) do
+            for _, line in ipairs(santa_hat_lines) do
                 ass:new_event()
                 ass:append(line_prefix .. line)
             end
@@ -3027,76 +3065,79 @@ mp.register_script_message("osc-playlist", function(dur)
     show_message(get_playlist(), dur)
 end)
 mp.register_script_message("osc-tracklist", function(dur)
-    local msg = {}
-    for k,v in pairs(nicetypes) do
-        table.insert(msg, get_tracklist(k))
+    local message = {}
+    for k in pairs(nicetypes) do
+        table.insert(message, get_tracklist(k))
     end
-    show_message(table.concat(msg, '\n\n'), dur)
+    show_message(table.concat(message, '\n\n'), dur)
 end)
 
 mp.observe_property("fullscreen", "bool",
-    function(name, val)
+    function(_, val)
         state.fullscreen = val
         state.marginsREQ = true
         request_init_resize()
     end
 )
 mp.observe_property("border", "bool",
-    function(name, val)
+    function(_, val)
         state.border = val
         request_init_resize()
     end
 )
+mp.observe_property("title-bar", "bool",
+    function(_, val)
+        state.title_bar = val
+        request_init_resize()
+    end
+)
 mp.observe_property("window-maximized", "bool",
-    function(name, val)
+    function(_, val)
         state.maximized = val
         request_init_resize()
     end
 )
 mp.observe_property("idle-active", "bool",
-    function(name, val)
+    function(_, val)
         state.idle = val
         request_tick()
     end
 )
 mp.observe_property("pause", "bool", pause_state)
 mp.observe_property("demuxer-cache-state", "native", cache_state)
-mp.observe_property("vo-configured", "bool", function(name, val)
-    request_tick()
-end)
-mp.observe_property("playback-time", "number", function(name, val)
-    request_tick()
-end)
-mp.observe_property("osd-dimensions", "native", function(name, val)
+mp.observe_property("vo-configured", "bool", request_tick)
+mp.observe_property("playback-time", "number", request_tick)
+mp.observe_property("osd-dimensions", "native", function()
     -- (we could use the value instead of re-querying it all the time, but then
     --  we might have to worry about property update ordering)
     request_init_resize()
 end)
+mp.observe_property('osd-scale-by-window', 'native', request_init_resize)
 
 -- mouse show/hide bindings
 mp.set_key_bindings({
-    {"mouse_move",              function(e) process_event("mouse_move", nil) end},
+    {"mouse_move",              function() process_event("mouse_move", nil) end},
     {"mouse_leave",             mouse_leave},
 }, "showhide", "force")
 mp.set_key_bindings({
-    {"mouse_move",              function(e) process_event("mouse_move", nil) end},
+    {"mouse_move",              function() process_event("mouse_move", nil) end},
     {"mouse_leave",             mouse_leave},
 }, "showhide_wc", "force")
 do_enable_keybindings()
 
 --mouse input bindings
 mp.set_key_bindings({
-    {"mbtn_left",           function(e) process_event("mbtn_left", "up") end,
-                            function(e) process_event("mbtn_left", "down")  end},
-    {"shift+mbtn_left",     function(e) process_event("shift+mbtn_left", "up") end,
-                            function(e) process_event("shift+mbtn_left", "down")  end},
-    {"mbtn_right",          function(e) process_event("mbtn_right", "up") end,
-                            function(e) process_event("mbtn_right", "down")  end},
+    {"mbtn_left",           function() process_event("mbtn_left", "up") end,
+                            function() process_event("mbtn_left", "down")  end},
+    {"shift+mbtn_left",     function() process_event("shift+mbtn_left", "up") end,
+                            function() process_event("shift+mbtn_left", "down")  end},
+    {"mbtn_right",          function() process_event("mbtn_right", "up") end,
+                            function() process_event("mbtn_right", "down")  end},
     -- alias to shift_mbtn_left for single-handed mouse use
-    {"mbtn_mid",            function(e) process_event("shift+mbtn_left", "up") end,
-                            function(e) process_event("shift+mbtn_left", "down")  end},
-    {"wheel_up",            function(e) process_event("wheel_up", "press") end},
-    {"wheel_down",          function(e) process_event("wheel_down", "press") end},
+    {"mbtn_mid",            function() process_event("shift+mbtn_left", "up") end,
+                            function() process_event("shift+mbtn_left", "down")  end},
+    {"wheel_up",            function() process_event("wheel_up", "press") end},
+    {"wheel_down",          function() process_event("wheel_down", "press") end},
     {"mbtn_left_dbl",       "ignore"},
     {"shift+mbtn_left_dbl", "ignore"},
     {"mbtn_right_dbl",      "ignore"},
@@ -3104,8 +3145,8 @@ mp.set_key_bindings({
 mp.enable_key_bindings("input")
 
 mp.set_key_bindings({
-    {"mbtn_left",           function(e) process_event("mbtn_left", "up") end,
-                            function(e) process_event("mbtn_left", "down")  end},
+    {"mbtn_left",           function() process_event("mbtn_left", "up") end,
+                            function() process_event("mbtn_left", "down")  end},
 }, "window-controls", "force")
 mp.enable_key_bindings("window-controls")
 
